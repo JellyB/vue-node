@@ -171,4 +171,25 @@ app.get(
 );
 ```
 
+#### 9.修改 Logout 方法
+
+```bash
+logout({ commit, state, dispatch }) {
+    return new Promise((resolve, reject) => {
+      try {
+        commit('SET_TOKEN', '')
+        commit('SET_ROLES', [])
+        removeToken()
+        resetRouter()
+        // reset visited views and cached views
+        // to fixed https://github.com/PanJiaChen/vue-element-admin/issues/2485
+        dispatch('tagsView/delAllViews', null, { root: true })
+        resolve()
+      } catch (e) {
+        reject(e)
+      }
+    })
+}
+```
+
 
