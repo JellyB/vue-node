@@ -1,6 +1,7 @@
 const { MIME_TYPE_EPUB, UPLOAD_URL, UPLOAD_PATH } =require ('../utils/constant')
 const fs =require ('fs')
 const EPub =require ('../utils/epub')
+const xml2js = require('xml2js').parseString
 
 
 class Book {
@@ -63,7 +64,6 @@ class Book {
     parse(){
         return new Promise(( resolve, reject ) => {
             const bookPath = `${UPLOAD_PATH}${this.filePath}`
-            console.log("bookPath:" + bookPath)
             if(!fs.existsSync(bookPath)){
                 reject(new Error('电子书不存在'))
             }
@@ -107,13 +107,122 @@ class Book {
                                 resolve(this)
                             }
                         }
-                        epub.getImage(cover, handleGetImage)
+                        try{
+                            this.unzip()
+                            this.parseContents(epub).then( ({ chapters }) => {
+                                this.contents = chapters
+                                epub.getImage(cover, handleGetImage)
+                            })
+                        }catch(e){
+                            reject(e)
+                        }
                     }
                 }
             })
             epub.parse()
         })
     }
+
+    unzip(){
+        const AdmZip = require('adm-zip')
+        const zip = new AdmZip(Book.genPath(this.path))
+        zip.extractAllTo(Book.genPath(this.unzipPath), true)
+    }
+
+
+    parseContents(epub){
+        function getNcxFilePath() {
+            const spine = epub && epub.spine
+            const manifest = epub && epub.manifest
+            const ncx = spine.toc && spine.toc.href
+            const id = spine.toc && spine.toc.id
+            if(ncx) {
+                return ncx
+            }else {
+                return manifest[id].href
+            }
+        }
+
+        function findParent(array, level = 1, pid = '') {
+            return array.map(item => {
+                item.level = level
+                item.pid = pid
+                if(item.navPoint && item.navPoint.length > 0){
+                    item.navPoint = findParent(item.navPoint, level + 1, item['$'].id)
+                }else if(item.navPoint) {
+                    item.navPoint.level = level + 1
+                    item.navPoint.pid = item['$'].id
+                }
+                return item
+            })
+        }
+
+        function flatten(array) {
+            return [].concat(...array.map(item => {
+                if(item.navPoint && item.navPoint.length > 0) {
+                    return [].concat(item, ...flatten(item.navPoint))
+                }else if(item.navPoint) {
+                    return [].concat(item, item.navPoint)
+                }
+                return item
+            }))
+        }
+
+        const ncxFilePath = Book.genPath(`${this.unzipPath}/${getNcxFilePath()}`)
+
+        if(fs.existsSync(ncxFilePath)){
+            return new Promise( (resolve, reject) => {
+                const xml = fs.readFileSync(ncxFilePath, 'utf-8')
+                const fileName = this.fileName
+                xml2js(xml, {
+                    explicitArray: false,
+                    ignoreAttrs: false
+                }, function(err, json) {
+                    if(err) {
+                        reject(err)
+                    }else {
+                        const navMap = json.ncx.navMap
+                        if(navMap.navPoint && navMap.navPoint.length > 0){
+                            navMap.navPoint = findParent(navMap.navPoint)
+                            const newNavMap = flatten(navMap.navPoint)
+                            const chapters = []
+                            epub.flow.forEach( (chapter, index) => {
+                                if(index + 1 > newNavMap.length) {
+                                    return
+                                }
+                                const nav = newNavMap[index]
+                                chapter.text = `${UPLOAD_URL}/unzip/${fileName}/${chapter.href}`
+                                if(nav && nav.navLabel) {
+                                    chapter.label = nav.navLabel.text
+                                }else {
+                                    chapter.label = ''
+                                }
+                                chapter.level = nav.level
+                                chapter.pid = nav.pid
+                                chapter.navId = nav['$'].id
+                                chapter.fileName = fileName
+                                chapter.order = index + 1
+                                chapters.push(chapter)
+                            });
+                            resolve({ chapters })
+                        }else {
+                            reject(new Error('目录解析失败，目录树为0'))
+                        }
+                    }
+                })
+            })
+        }else{
+            throw new Error('目录文件不存在')
+        }
+    }
+
+    static genPath(path){
+        if(!path.startsWith('/')){
+            path = `/${path}`
+        }
+        return `${UPLOAD_PATH}${path}`
+    }
+
 
 }
 
