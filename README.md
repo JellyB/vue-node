@@ -192,4 +192,39 @@ logout({ commit, state, dispatch }) {
 }
 ```
 
+#### 10.后端文件保存
 
+安装
+
+```bash
+cnpm i -S multer
+```
+
+使用
+
+```bash
+const multer = require('multer')
+router.post(
+    '/upload',
+    multer({ dest: `${UPLOAD_PATH}/book`}).single('file'),
+    function(req, res, next) {
+        if(!req.file || req.file.length ===0 ){
+            new Result('上传电子书失败').fail(res)
+        }else{
+            new Result('上传电子书成功').success(res)
+        }
+})
+```
+
+#### 11.电子书解析
+
+[epub 库源码](!https://github.com/julien-c/epub)
+我们直接将 epub.js 拷贝到 /utils/epub.js
+
+
+安装依赖
+
+```bash
+cnpm i -S xml2js
+cnpm i -S adm-zip
+```
