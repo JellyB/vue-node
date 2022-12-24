@@ -228,3 +228,103 @@ router.post(
 cnpm i -S xml2js
 cnpm i -S adm-zip
 ```
+
+#### 12. Nginx 服务器搭建
+
+##### 1.安装 nginx
+
+[windows 通过下载官网安装包，下载地址](!http://nginx.org/en/download.html)
+
+[mac 通过 brew 安装，参考](!https://www.jianshu.com/p/c3294887c6b6)
+
+##### 2.修改配置文件
+
+打开配置文件 nginx.conf：
+- windows 位于安装目录下
+- macOS 位于：/usr/local/etc/nginx/nginx.conf
+
+在结尾大括号之前添加
+
+```conf
+include servers/*;
+include /usr/local/etc/nginx/upload.conf;
+```
+在当前目录 /usr/local/etc/nginx/ 下新增 upload.conf 配置文件
+
+并添加如下内容
+
+```bash
+touch upload.conf
+vim upload.conf
+
+server
+{
+  charset utf-8;
+  listen 8089;
+  server_name http_host;
+  root /Users/${user}/upload/;
+  autoindex on;
+  add_header Cache-Control "no-cache, must-revalidate";
+  location / {
+    add_header Access-Control-Allow-Origin *;
+  }
+}
+```
+
+/Users/${user}/upload/ 为文件上传目录
+
+如果需要加入 https 服务，可以再添加一个 server：
+
+```conf
+server
+{
+  listen 443 default ssl;
+  server_name https_host;
+  root /Users/${user}/upload/;
+  autoindex on;
+  add_header Cache-Control "no-cache, must-revalidate";
+  location / {
+    add_header Access-Control-Allow-Origin *;
+  }
+  ssl_certificate /Users/${user}/Desktop/https/${your_cert}_xyz.pem;
+  ssl_certificate_key /Users/${user}/Desktop/https/${your_cert}_xyz.key;
+  ssl_session_timeout  5m;
+  ssl_protocols  SSLv3 TLSv1;
+  ssl_ciphers  ALL:!ADH:!EXPORT56:RC4+RSA:+HIGH:+MEDIUM:+LOW:+SSLv2:+EXP;
+  ssl_prefer_server_ciphers  on;
+}
+```
+
+https证书：/Users/${user}/Desktop/https/${your_cert}_xyz.pem
+https:私钥：/Users/${user}/Desktop/https/${your_cert}_xyz.key
+
+##### 3. 启动服务
+
+```bash
+//启动 nginx 服务
+sudo nginx
+
+//重启 nginx 服务
+sudo nginx -s reload
+
+//停止 nginx 服务
+sudo nginx -s stop
+
+//检查配置文件是否存在语法错误
+sudo nginx -t
+```
+
+##### 4.访问地址：
+
+```bash
+http: http://localhost:8089
+https: https://localhost
+```
+
+
+
+
+
+
+
+

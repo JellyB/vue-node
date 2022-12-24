@@ -1,6 +1,7 @@
 const { env } = require('./env')
-const UPLOAD_PATH = env === 'dev' ? '/Users/biguodong/ebook/upload' : '/root/upload/admin-upload/ebook'
-const UPLOAD_URL = env === 'dev' ? 'https://boook.youbaobao.xyz/ebook' : 'https://www.youbaobao.xyz/ebook'
+const UPLOAD_PATH = env === 'dev' ? '/Users/biguodong/upload/ebook' : '/root/upload/admin-upload/ebook'
+// const UPLOAD_URL = env === 'dev' ? 'https://boook.youbaobao.xyz/ebook' : 'https://www.youbaobao.xyz/ebook'
+const UPLOAD_URL = env === 'dev' ? 'http://book.youbaobao.xyz:8089/ebook' : 'https://www.youbaobao.xyz/ebook'
 
 module.exports = {
     CODE_TOKEN_EXPIRED: -2,

@@ -2,6 +2,7 @@ const { MIME_TYPE_EPUB, UPLOAD_URL, UPLOAD_PATH } =require ('../utils/constant')
 const fs =require ('fs')
 const EPub =require ('../utils/epub')
 const xml2js = require('xml2js').parseString
+const path = require('path')
 
 
 class Book {
@@ -14,7 +15,6 @@ class Book {
     }
 
     createBookFromFile(file){
-        console.log('createBookFromFile', file)
         const {
             destination,
             filename,
@@ -49,6 +49,7 @@ class Book {
         this.author = '' // 作者
         this.publisher = '' // 出版社
         this.contents = [] // 目录
+        this.contentsTree = [] // 树状目录结构
         this.cover = '' // 封面
         this.coverPath = '' // 封面图片路径
         this.category = -1 // 分类
@@ -75,7 +76,7 @@ class Book {
                 if(err){
                     reject(err)
                 }else{
-                    console.log('epub end', epub)
+                    // console.log('epub end', epub)
                     const {
                         language,
                         creator,
@@ -109,8 +110,9 @@ class Book {
                         }
                         try{
                             this.unzip()
-                            this.parseContents(epub).then( ({ chapters }) => {
+                            this.parseContents(epub).then( ({ chapters, chapterTree }) => {
                                 this.contents = chapters
+                                this.contentsTree = chapterTree
                                 epub.getImage(cover, handleGetImage)
                             })
                         }catch(e){
@@ -173,6 +175,7 @@ class Book {
         if(fs.existsSync(ncxFilePath)){
             return new Promise( (resolve, reject) => {
                 const xml = fs.readFileSync(ncxFilePath, 'utf-8')
+                const dir = path.dirname(ncxFilePath).replace(UPLOAD_PATH, '')
                 const fileName = this.fileName
                 xml2js(xml, {
                     explicitArray: false,
@@ -186,25 +189,27 @@ class Book {
                             navMap.navPoint = findParent(navMap.navPoint)
                             const newNavMap = flatten(navMap.navPoint)
                             const chapters = []
-                            epub.flow.forEach( (chapter, index) => {
-                                if(index + 1 > newNavMap.length) {
-                                    return
-                                }
-                                const nav = newNavMap[index]
-                                chapter.text = `${UPLOAD_URL}/unzip/${fileName}/${chapter.href}`
-                                if(nav && nav.navLabel) {
-                                    chapter.label = nav.navLabel.text
-                                }else {
-                                    chapter.label = ''
-                                }
-                                chapter.level = nav.level
-                                chapter.pid = nav.pid
-                                chapter.navId = nav['$'].id
+                            newNavMap.forEach( (chapter, index) => {
+                                const src = chapter.content['$'].src
+                                chapter.text = `${UPLOAD_URL}${dir}/${src}`
+                                chapter.label = chapter.navLabel.text || ''
+                                chapter.navId = chapter['$'].id
                                 chapter.fileName = fileName
                                 chapter.order = index + 1
                                 chapters.push(chapter)
-                            });
-                            resolve({ chapters })
+                            })
+                            const chapterTree = []
+                            chapters.forEach( c => {
+                                c.children = []
+                                if(c.pid === '') {
+                                    chapterTree.push(c)
+                                }else {
+                                    const parent = chapters.find( _ => _.navId === c.pid)
+                                    parent.children.push(c)
+                                }
+                            })
+                            console.log(chapterTree)
+                            resolve({ chapters, chapterTree })
                         }else {
                             reject(new Error('目录解析失败，目录树为0'))
                         }
